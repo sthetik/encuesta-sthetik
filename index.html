@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tu experiencia en Sthetik</title>
+  <link rel="icon" href="assets/logo-sthetik.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Jost:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { display: flex; flex-direction: column; min-height: 100%; }
+    .progress { position: fixed; inset: 0 0 auto 0; height: 4px; background: var(--petal); z-index: 5; }
+    .progress span { display: block; height: 100%; width: 0; background: var(--rose); transition: width .4s ease; }
+
+    header { padding: 28px clamp(20px, 6vw, 72px) 0; }
+    header img { width: 132px; }
+
+    main {
+      flex: 1; display: flex; align-items: center;
+      padding: 32px clamp(20px, 6vw, 72px) 48px;
+    }
+    .step { width: 100%; max-width: 720px; display: none; }
+    .step.active { display: block; animation: enter .45s ease both; }
+    @keyframes enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+    .counter { font-size: 15px; color: var(--rose-deep); margin: 0 0 14px; }
+    h1 {
+      font-family: var(--serif); font-weight: 400;
+      font-size: clamp(26px, 4.2vw, 40px); line-height: 1.2;
+      margin: 0 0 32px; letter-spacing: -0.01em;
+    }
+    .optional { font-family: var(--sans); font-size: 16px; color: var(--rose-deep); }
+
+    .options { display: grid; gap: 12px; max-width: 460px; }
+    .opt {
+      display: flex; align-items: center; gap: 14px; text-align: left;
+      padding: 14px 20px 14px 14px; border-radius: var(--radius-pill);
+      background: var(--paper); border: 1.5px solid var(--petal);
+      font-size: 18px; transition: border-color .15s, background .15s;
+    }
+    .opt:hover { border-color: var(--rose); }
+    .opt .key {
+      flex: none; width: 30px; height: 30px; border-radius: 50%;
+      display: grid; place-items: center; font-size: 13px; font-weight: 500;
+      border: 1.5px solid var(--rose); color: var(--rose-deep);
+    }
+    .opt[aria-checked="true"] { background: var(--rose); border-color: var(--rose); color: #fff; }
+    .opt[aria-checked="true"] .key { border-color: #fff; color: #fff; }
+
+    textarea {
+      width: 100%; min-height: 130px; resize: vertical;
+      font: inherit; font-size: 18px; color: var(--ink);
+      background: var(--paper); border: 1.5px solid var(--petal);
+      border-radius: var(--radius-box); padding: 16px 18px;
+    }
+    textarea:focus { border-color: var(--rose); outline: none; }
+
+    .actions { display: flex; gap: 16px; align-items: center; margin-top: 28px; flex-wrap: wrap; }
+    .btn {
+      border: 0; border-radius: var(--radius-pill); padding: 14px 28px;
+      background: var(--rose-deep); color: #fff; font-size: 17px; font-weight: 500;
+    }
+    .btn:disabled { opacity: .55; cursor: wait; }
+    .back { background: none; border: 0; color: var(--rose-deep); font-size: 16px; text-decoration: underline; padding: 6px 0; }
+    .hint { font-size: 14px; color: var(--rose-deep); }
+    .error { color: #A1423F; font-size: 15px; margin-top: 14px; min-height: 1.2em; }
+
+    .thanks h1 { font-size: clamp(34px, 6vw, 56px); margin-bottom: 16px; }
+    .thanks p { font-size: 19px; line-height: 1.6; max-width: 46ch; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+  <header><img src="assets/logo-sthetik.png" alt="Sthetik Skin & Beauty" /></header>
+  <main id="app"></main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.STHETIK_CONFIG;
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const Q = window.STHETIK_QUESTIONS;
+    const answers = {};
+    const app = document.getElementById("app");
+    const bar = document.getElementById("bar");
+    const letters = "ABCDEFGH";
+    let current = 0;
+
+    function render() {
+      app.innerHTML = Q.map((q, i) => `
+        <section class="step" data-i="${i}" aria-labelledby="q${i}">
+          <p class="counter">Pregunta ${i + 1} de ${Q.length}</p>
+          <h1 id="q${i}">${q.title}${q.optional ? ' <span class="optional">(opcional)</span>' : ''}</h1>
+          ${q.type === "text"
+            ? `<textarea id="t${i}" placeholder="Escribe aquí tu respuesta" maxlength="2000"></textarea>
+               <div class="actions">
+                 <button class="btn" id="send">Enviar respuestas</button>
+                 <button class="back" data-back>Anterior</button>
+               </div>
+               <p class="error" id="err" role="alert"></p>`
+            : `<div class="options" role="radiogroup" aria-labelledby="q${i}">
+                 ${q.options.map((o, j) => `
+                   <button class="opt" role="radio" aria-checked="false" data-v="${o.label}">
+                     <span class="key">${letters[j]}</span>${o.label}
+                   </button>`).join("")}
+               </div>
+               <div class="actions">
+                 ${i > 0 ? '<button class="back" data-back>Anterior</button>' : ''}
+                 <span class="hint">También puedes pulsar ${letters.slice(0, q.options.length).split("").join(", ")}</span>
+               </div>`}
+        </section>`).join("") + `
+        <section class="step thanks" data-i="${Q.length}">
+          <h1>Gracias por contarnos</h1>
+          <p>Tu opinión nos ayuda a cuidarte mejor en cada visita. Te esperamos pronto en Sthetik.</p>
+        </section>`;
+
+      app.querySelectorAll(".opt").forEach(btn => btn.addEventListener("click", () => choose(btn)));
+      app.querySelectorAll("[data-back]").forEach(b => b.addEventListener("click", () => go(current - 1)));
+      document.getElementById("send").addEventListener("click", submit);
+      go(0);
+    }
+
+    function go(i) {
+      current = Math.max(0, i);
+      app.querySelectorAll(".step").forEach(s => s.classList.toggle("active", +s.dataset.i === current));
+      bar.style.width = `${(current / Q.length) * 100}%`;
+      const step = app.querySelector(".step.active");
+      const focusable = step.querySelector('[aria-checked="true"], .opt, textarea');
+      if (focusable) focusable.focus({ preventScroll: true });
+    }
+
+    function choose(btn) {
+      const step = btn.closest(".step");
+      const q = Q[+step.dataset.i];
+      step.querySelectorAll(".opt").forEach(b => b.setAttribute("aria-checked", b === btn));
+      answers[q.key] = btn.dataset.v;
+      setTimeout(() => go(current + 1), 280);
+    }
+
+    async function submit() {
+      const send = document.getElementById("send");
+      const err = document.getElementById("err");
+      const missing = Q.filter(q => !q.optional && !answers[q.key]);
+      if (missing.length) { go(Q.indexOf(missing[0])); return; }
+
+      const comment = document.querySelector("textarea").value.trim();
+      send.disabled = true; send.textContent = "Enviando…"; err.textContent = "";
+
+      const { error } = await db.from("respuestas").insert({ ...answers, comentario: comment || null });
+      if (error) {
+        send.disabled = false; send.textContent = "Enviar respuestas";
+        err.textContent = "No se pudo enviar. Revisa tu conexión e inténtalo otra vez.";
+        console.error(error);
+        return;
+      }
+      go(Q.length);
+      bar.style.width = "100%";
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.target.tagName === "TEXTAREA") return;
+      const step = app.querySelector(".step.active");
+      const idx = letters.indexOf(e.key.toUpperCase());
+      const opts = step ? step.querySelectorAll(".opt") : [];
+      if (idx >= 0 && opts[idx]) opts[idx].click();
+    });
+
+    render();
+  </script>
+</body>
+</html>
